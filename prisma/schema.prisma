@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USER MODELS ============
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  name          String?
+  mobile        String?   @unique
+  passwordHash  String?
+  role          String    @default("DEMO") // DEMO, USER, ADMIN
+  balance       Float     @default(0)
+  ipHash        String?
+  isDemo        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  applications    Application[]
+  transactions    Transaction[]
+  repayments      Repayment[]
+  notifications   Notification[]
+  verifications   Verification[]
+  supportTickets  SupportTicket[]
+  supportMessages SupportMessage[]
+  demoSessions    DemoSession[]
+  auditLogs       AuditLog[]
+}
+
+model DemoSession {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  ipHash    String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============ LOAN MODELS ============
+
+model LoanPlan {
+  id             String   @id @default(cuid())
+  name           String
+  principalAmount Float
+  interestAmount  Float
+  totalAmount     Float
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  applications Application[]
+}
+
+model Application {
+  id               String   @id @default(cuid())
+  userId           String
+  planId           String
+  status           String   @default("PENDING") // PENDING, VERIFICATION, APPROVED, REJECTED, COMPLETED
+  principalAmount  Float
+  interestAmount   Float
+  totalAmount      Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       LoanPlan   @relation(fields: [planId], references: [id])
+  repayments Repayment[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ============ VERIFICATION ============
+
+model Verification {
+  id               String   @id @default(cuid())
+  userId           String
+  frontDocumentKey String?
+  backDocumentKey  String?
+  status           String   @default("PENDING") // PENDING, SUBMITTED, VERIFIED, REJECTED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============ TRANSACTIONS ============
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // DEMO_LOAN_CREDIT, DEMO_INTEREST, DEMO_REPAYMENT, ADJUSTMENT
+  amount      Float
+  description String?
+  status      String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============ REPAYMENTS ============
+
+model Repayment {
+  id               String    @id @default(cuid())
+  userId           String
+  applicationId    String
+  installmentNumber Int
+  dueAmount        Float
+  paidAmount       Float     @default(0)
+  status           String    @default("PENDING") // PENDING, PAID, OVERDUE, DEMO_PAID
+  dueDate          DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([applicationId])
+  @@index([status])
+}
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+}
+
+// ============ SUPPORT ============
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  subject   String
+  status    String   @default("OPEN") // OPEN, PENDING, RESOLVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SupportMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  message   String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+// ============ AUDIT ============
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
